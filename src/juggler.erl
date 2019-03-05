@@ -14,7 +14,7 @@
 -export([
   accept_loop/0,
   accept/1,
-  process_request/2,
+  kick_off_request_handler/2,
   handle_request/2,
   dispatch/2,
   process_stats/0]).
@@ -36,6 +36,69 @@ accept(NumRequests)->
   [dispatch(X, Self) || X <- lists:seq(1, NumRequests)],
   collect_responses(0, 0, 0, 0, NumRequests).
 
+collect_responses(N, Finished, _Killed, Inf, N) ->
+  io:format("~n~b finished, ~b running forever~n", [Finished, Inf]);
+collect_responses(N, Finished, Killed, Inf, Total) ->
+  receive
+    {_HandlerPid, ok, _Duration} -> collect_responses(N+1, Finished+1, Killed, Inf, Total);
+    {error, ?DONT_WAIT_FOR_ME} ->
+      CurrInf = get(inf),
+      put(inf, CurrInf + 1),
+      collect_responses(N + 1, Finished, Killed, Inf+1, Total)
+  end.
+
+dispatch(Req, AcceptorPid) ->
+  spawn(?MODULE, kick_off_request_handler, [Req, AcceptorPid]).
+
+
+%%% a kind of a supervisor
+kick_off_request_handler(Req, AcceptorPid) ->
+  Self = self(),
+  RequestHandlerPid = spawn(?MODULE, handle_request, [Req, Self]),
+  Start = os:system_time(millisecond),
+  receive
+    {RequestHandlerPid, Resp} ->
+      End = os:system_time(millisecond),
+      Duration = End - Start,
+      io:format("...~p [~b]...", [Req, Duration]),
+      AcceptorPid ! {RequestHandlerPid, Resp, Duration};
+    Other -> AcceptorPid ! {error, Other}
+  end.
+
+
+handle_request(Req, ParentPid) when is_integer(Req) ->
+  case Req rem ?BUG_MOD of
+    0 ->
+        io:format("~n**** ~p [INF]*****~n", [Req]),
+        ParentPid ! ?DONT_WAIT_FOR_ME,
+        handle_with_inf_loop_bug();
+    _Other ->
+        Resp = count_to_1000_and_do_other_stuff_too(Req, 0),
+        HandlerPid = self(),
+        ParentPid ! {HandlerPid, Resp}
+  end.
+
+count_to_1000_and_do_other_stuff_too(_Req, 1000) -> ok;
+count_to_1000_and_do_other_stuff_too(Req, C) ->
+  case (Req rem 2) of
+    0 ->  binary:copy(<<Req/integer>>,300);
+    1 ->  binary:copy(<<(Req + 1)/integer>>,200)
+  end,
+  count_to_1000_and_do_other_stuff_too(Req, C+1).
+
+handle_with_inf_loop_bug()->
+    infinite_loop(0).
+
+infinite_loop(C) ->
+  _A = binary:copy(<<1>>,200),
+  _B = math:sqrt(1235),
+  infinite_loop(C+1).
+
+
+
+%%%% STATS UTILITIES
+
+%% utility for keeping current count of infinte loops around
 init_inf_count()->
   case get(inf) of
     SomeInt when is_integer(SomeInt) -> ok;
@@ -55,82 +118,10 @@ print_status(Pid, {[{status,running}]}) ->
   put(running, NumRunning);
 print_status(Pid, {[{status, Other}]}) ->
   NumProcs =
-  case get(Other) of
-    undefined -> 1;
-    Int when is_integer(Int) -> Int + 1
-  end,
+    case get(Other) of
+      undefined -> 1;
+      Int when is_integer(Int) -> Int + 1
+    end,
   put(Other, NumProcs),
   io:format("~p [~p]...", [Pid, Other]).
 
-collect_responses(N, Finished, _Killed, Inf, N) ->
-  io:format("~n~b finished, ~b running forever~n", [Finished, Inf]);
-  %%  TODO 3
-collect_responses(N, Finished, Killed, Inf, Total) ->
-  receive
-    {_HandlerPid, ok, _Duration} -> collect_responses(N+1, Finished+1, Killed, Inf, Total);
-    ?DONT_WAIT_FOR_ME ->
-      CurrInf = get(inf),
-      put(inf, CurrInf + 1),
-      collect_responses(N + 1, Finished, Killed, Inf+1, Total)
-    %%% TODO 2
-  end.
-
-dispatch(Req, AcceptorPid) ->
-  spawn(?MODULE, process_request, [Req, AcceptorPid]).
-
-process_request(Req, AcceptorPid) ->
-  Self = self(),
-  HandlerPid = spawn(?MODULE, handle_request, [Req, Self]),
-  Start = os:system_time(millisecond),
-  receive
-    {HandlerPid, Resp} ->
-      End = os:system_time(millisecond),
-      Duration = End - Start,
-      io:format("...~p [~b]...", [Req, Duration]),
-      AcceptorPid ! {HandlerPid, Resp, Duration};
-    ?DONT_WAIT_FOR_ME -> AcceptorPid ! ?DONT_WAIT_FOR_ME;
-    _Other -> io:format("Received unexpected response~n")
-%% TODO 1
-  end.
-
-handle_request(Req, ParentPid) when is_integer(Req) ->
-  case Req rem ?BUG_MOD of
-    0 ->
-        io:format("~n**** ~p [INF]*****~n", [Req]),
-        ParentPid ! ?DONT_WAIT_FOR_ME,
-        handle_with_inf_loop_bug();
-    _Other ->
-        Resp = normal_handle(Req),
-        HandlerPid = self(),
-        ParentPid ! {HandlerPid, Resp}
-  end.
-
-
-normal_handle(Req) when is_integer(Req)->
-  count_to_1000_and_do_other_stuff_too(Req, 0).
-
-count_to_1000_and_do_other_stuff_too(_Req, 1000) -> ok;
-count_to_1000_and_do_other_stuff_too(Req, C) ->
-  case (Req rem 2) of
-    0 ->  binary:copy(<<Req/integer>>,300);
-    1 ->  binary:copy(<<(Req + 1)/integer>>,200)
-  end,
-  count_to_1000_and_do_other_stuff_too(Req, C+1).
-
-handle_with_inf_loop_bug()->
-    infinite_loop(0).
-
-infinite_loop(C) -> _A = binary:copy(<<1>>,200), _B = math:sqrt(1235), infinite_loop(C+1).
-
-
-%%%% TODO 1
-%%after 5000 ->
-%%io:format("xxxx ~p[K] xxxx", [Req]),
-%%AcceptorPid ! {HandlerPid, killed},
-%%exit(HandlerPid, timedout)
-
-%%%  TODO 2
-%%% {_HandlerPid, killed} -> collect_responses(N+1, F, K+1, Total)
-
-%%% TODO 3
-%%io:format("~n~b finished, ~b killed, ~b running forever~n", [Finished, Killed, Inf]).
