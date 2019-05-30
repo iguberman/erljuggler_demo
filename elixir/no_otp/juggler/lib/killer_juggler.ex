@@ -57,12 +57,12 @@ defmodule KillerJuggler do
 
 
   def dispatch(req, acceptorPid) do
-    spawn(Juggler, :kick_off_request_handler, [req, acceptorPid])
+    spawn(KillerJuggler, :kick_off_request_handler, [req, acceptorPid])
   end
 
   ### a kind of a supervisor
   def kick_off_request_handler(req, acceptor_pid) do
-    requestHandlerPid = spawn(Juggler, :handle_request, [req, self()])
+    requestHandlerPid = spawn(KillerJuggler, :handle_request, [req, self()])
     start_time = :os.system_time(:millisecond)
     receive do
       {requestHandlerPid, resp} ->
@@ -70,12 +70,9 @@ defmodule KillerJuggler do
         duration = end_time - start_time
         IO.write("...#{inspect(req)} [[#{inspect(duration)}]]...")
         send(acceptor_pid ,{requestHandlerPid, resp, duration})
-      other ->
-        IO.write("Received unexpected #{inspect(other)}\n")
-        send(acceptor_pid, {:error, other})
     after
-      1_000 ->
-        IO.write("xxxx #{inspect(req)}[K] xxxx")
+      2_000 ->
+        IO.write("xxxx #{inspect(req)}[Killed] xxxx")
         send(acceptor_pid, {requestHandlerPid, :killed})
         Process.exit(requestHandlerPid, :timedout)
     end
@@ -85,7 +82,7 @@ defmodule KillerJuggler do
   def handle_request(req, parentPid) when is_integer(req) do
     case Integer.mod(req, @bug_mod) do
       0 ->
-          IO.write("\n**** #{inspect(req)} [INF]*****\n")
+          IO.write("\n*** #{inspect(req)} [INF]*****\n")
           send(parentPid, :dont_wait_for_me)
           handle_with_inf_loop_bug()
       _other ->
