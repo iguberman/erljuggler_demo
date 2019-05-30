@@ -29,10 +29,10 @@ defmodule Juggler do
   end
 
   def collect_responses(n, finished, _killed, inf, n, total_duration) do
-    IO.write("\n #{inspect(finished)} finished at ave of #{inspect(total_duration/finished)} millis\n")
+    IO.write("\n\n #{inspect(finished)} finished at ave of #{inspect(total_duration/finished)} millis\n")
     case inf do
        0 -> :ok
-       positive  -> IO.write("#{inspect(inf)} running forever\n")
+       positive  -> IO.write("\n#{inspect(inf)} running forever\n\n")
     end
   end
 
