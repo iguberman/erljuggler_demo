@@ -8,7 +8,7 @@
 -module(juggler).
 -author("iguberman").
 
--define(BUG_MOD, 10).
+-define(BUG_MOD, 100001).
 
 %% API
 -export([
