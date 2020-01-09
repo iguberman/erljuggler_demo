@@ -75,7 +75,7 @@ init([]) ->
     #{id => otp_juggler_acceptor,
       start => {otp_juggler_acceptor, start_link, [RequestTimeout]},
       restart => permanent,
-      type => worker,   %% default so this line can be ommitted
+      type => worker,   %% default -- so this line can be ommitted
       shutdown => 5000},
 
   JugglerRequestHandlerSupSpec =

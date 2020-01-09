@@ -31,18 +31,21 @@ end_per_suite(_Config) ->
 test_10000_normal_requests(Config)->
   [otp_juggler_app:send_request({normal, X}) || X <- lists:seq(1, 10000)],
   timer:sleep(60000),
-  #{num_requests := 10000, num_failed_requests := 0, num_ok_requests := 10000} = otp_juggler_app:get_stats().
+  #{num_requests := 10000, num_failed_requests := 0, num_ok_requests := 10000} = otp_juggler_app:get_stats(),
+  Config.
 
 
 test_infinite_loop_requests(Config) ->
   [otp_juggler_app:send_request({infinite, X}) || X <- lists:seq(1, 10000)],
   timer:sleep(20000),
-  #{num_requests := 10000, num_failed_requests := 10000, num_ok_requests := 0} = otp_juggler_app:get_stats().
+  #{num_requests := 10000, num_failed_requests := 10000, num_ok_requests := 0} = otp_juggler_app:get_stats(),
+  Config.
 
 
 test_10000_mixed_requests(Config) ->
   [otp_juggler_app:send_request({infinite, X}) || X <- lists:seq(1, 1000)],
   [otp_juggler_app:send_request({infinite, X}) || X <- lists:seq(1, 9000)],
   timer:sleep(120000),
-  #{num_requests := 10000, num_failed_requests := 1000, num_ok_requests := 9000} = otp_juggler_app:get_stats().
+  #{num_requests := 10000, num_failed_requests := 1000, num_ok_requests := 9000} = otp_juggler_app:get_stats(),
+  Config.
 

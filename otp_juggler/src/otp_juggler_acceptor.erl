@@ -12,7 +12,9 @@
 -behaviour(gen_server).
 
 %% API
--export([start_link/0]).
+-export([
+  start_link/0,
+  get_stats/0]).
 
 %% gen_server callbacks
 -export([init/1,
@@ -32,6 +34,7 @@
 %%% API
 %%%===================================================================
 
+
 %%--------------------------------------------------------------------
 %% @doc
 %% Starts the server
@@ -42,6 +45,11 @@
   {ok, Pid :: pid()} | ignore | {error, Reason :: term()}).
 start_link() ->
   gen_server:start_link({local, ?SERVER}, ?MODULE, [], []).
+
+
+get_stats()->
+  gen_server:call(?SERVER, get_stats, 10000).
+
 
 %%%===================================================================
 %%% gen_server callbacks
@@ -82,7 +90,9 @@ init([RequestTimeout]) ->
 handle_call(get_stats, _From, #state{ num_total_requests = NumRequests,
   num_failed_requests = NumFailedRequests,
   num_ok_requests = NumOkRequests} = State) ->
-  {reply, #{num_requests => NumRequests, num_failed_requests => NumFailedRequests, num_ok_requests => NumOkRequests}, State}.
+  {reply, #{num_requests => NumRequests,
+    num_failed_requests => NumFailedRequests,
+    num_ok_requests => NumOkRequests}, State}.
 
 
 %%--------------------------------------------------------------------
