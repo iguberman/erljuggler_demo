@@ -3,13 +3,13 @@
 %% @end
 %%%-------------------------------------------------------------------
 
--module(otp_juggler_request_handler_sup).
+-module(otp_juggler_request_controller_sup).
 
 -behaviour(supervisor).
 
 -export([
   start_link/0,
-  start_request_handler/1]).
+  start_request_controller/1]).
 
 -export([init/1]).
 
@@ -46,22 +46,29 @@ init([]) ->
 %%  temporary?  -- never restarted
 %%  transient?  -- a process should be restarted only when it fails, if it terminated normally -- no restart!
 
+
+  %% Make request timeout configurable
+  RequestTimeout = application:get_env(otp_juggler_app, request_timeout, 1000),
+
     RequestHandlerSpec =
-    #{id => otp_juggler_request_handler,
-      start => {otp_juggler_request_handler, start_link, []},
+    #{id => otp_juggler_request_controller,
+      %%% NOTE this first argument "RequestTimeout" will be common for all the children created on the fly
+      %%% Example of a common argument that's part of the
+      %%% "simple_one_for_one" child "template"
+      start => {otp_juggler_request_controller, start_link, [RequestTimeout]},
       restart => temporary,
-      shutdown => 5000},
+      shutdown => 1000},
     ChildSpecs = [RequestHandlerSpec],
     {ok, {RestartStrategy, ChildSpecs}}.
 
 
 %%% FOR a simple_one_for_one supervisor it is essential to have a public method for starting children dynamically
-start_request_handler(RequestNumber)->
+start_request_controller(RequestNumber)->
   %%% IMPORTANT NOTE!   based on the "start" field in the child spec above
-  %%% start => {otp_juggler_request_handler, start_link, [RemoteDBHost]},
+  %%% start => {otp_juggler_request_handler, start_link, [RequestTimeout]},
   %%% this line actually calls
-  %%% otp_juggler_request_handler:start_link(RemoteDBHost, RequestNumber)
-  %%% The "common" arg (here RemoteDBHost) and the request-"specific" arg(s) (here RequestNumber)
+  %%% otp_juggler_request_handler:start_link(RequestTimeout, RequestNumber)
+  %%% The "common" arg (here RequestTimeout) and the request-"specific" arg(s) (here RequestNumber)
   %%%  get concatenated into the arg list of the call. That's simple_one_for_one implementation magic! :)
   supervisor:start_child(?MODULE, [RequestNumber]).
 

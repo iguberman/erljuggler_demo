@@ -1,0 +1,2 @@
+-sname {{ node_name }}
+-setcookie {{ erlang_cookie }}

@@ -16,6 +16,11 @@ dialyzer specs that they come with!
 Basic supervision tree and the gen_servers 
 have been identified but not implemented.
 
+
+To run from command line:
+
+>make test-rel 
+erl>
 To run common test(s):
 
 >rebar3 ct

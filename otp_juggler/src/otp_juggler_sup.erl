@@ -67,16 +67,19 @@ init([]) ->
 %%  temporary?  -- never restarted
 %%  transient?  -- a process should be restarted only when it fails, if it terminated normally -- no restart!
 
-
-  %% Make request timeout configurable
-  {ok, RequestTimeout} = application:get_env(otp_juggler_app, juggler_request_timeout, 5000),
-
   AcceptorSpec =
     #{id => otp_juggler_acceptor,
-      start => {otp_juggler_acceptor, start_link, [RequestTimeout]},
+      start => {otp_juggler_acceptor, start_link, []},
       restart => permanent,
       type => worker,   %% default -- so this line can be ommitted
       shutdown => 5000},
+
+  JugglerRequestControllerSupSpec =
+    #{id => otp_juggler_request_controller_sup,
+      start => {otp_juggler_request_controller_sup, start_link, []},
+      restart => permanent,
+      type => supervisor,
+      shutdown => 10000},
 
   JugglerRequestHandlerSupSpec =
     #{id => otp_juggler_request_handler_sup,
@@ -85,7 +88,7 @@ init([]) ->
       type => supervisor,
     shutdown => 10000},
 
-  ChildSpecs = [AcceptorSpec, JugglerRequestHandlerSupSpec],
+  ChildSpecs = [AcceptorSpec, JugglerRequestControllerSupSpec, JugglerRequestHandlerSupSpec],
 
   {ok, {RestartStrategy, ChildSpecs}}.
 

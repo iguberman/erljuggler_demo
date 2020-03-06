@@ -34,18 +34,20 @@ accept(NumRequests)->
   init_inf_count(),
   Self = self(),
   [dispatch(X, Self) || X <- lists:seq(1, NumRequests)],
-  collect_responses(0, 0, 0, 0, NumRequests).
+  collect_responses(0, 0, 0, 0, NumRequests, 0).
 
-collect_responses(N, Finished, Killed, Inf, N) ->
-  io:format("~n~b finished, ~b killed, ~b running forever~n", [Finished, Killed, Inf]);
-collect_responses(N, Finished, Killed, Inf, Total) ->
+collect_responses(N, Finished, _Killed, Inf, N, TotalDuration) ->
+  io:format("~n=================================================================================~n"),
+  io:format("=================================================================================~n~n"),
+  io:format("~b finished at ~b ms on average.~n~b still running~n", [Finished, round(TotalDuration / Finished), Inf]);
+collect_responses(N, Finished, Killed, Inf, Total, TotalDuration) ->
   receive
-    {_HandlerPid, ok, _Duration} -> collect_responses(N+1, Finished+1, Killed, Inf, Total);
+    {_HandlerPid, ok, Duration} ->
+      collect_responses(N+1, Finished+1, Killed, Inf, Total, TotalDuration + Duration);
     {error, ?DONT_WAIT_FOR_ME} ->
       CurrInf = get(inf),
       put(inf, CurrInf + 1),
-      collect_responses(N + 1, Finished, Killed, Inf+1, Total);
-    {_HandlerPid, killed} -> collect_responses(N+1, Finished, Killed+1, Inf, Total)
+      collect_responses(N + 1, Finished, Killed, Inf+1, Total, TotalDuration)
   end.
 
 dispatch(Req, AcceptorPid) ->

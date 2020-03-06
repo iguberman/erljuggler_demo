@@ -1,6 +1,6 @@
 {application, otp_juggler,
  [{description, "Killer Juggler OTP application"},
-  {vsn, "0.1.0"},
+  {vsn, "1.0"},
   {registered, []},
   {mod, {otp_juggler_app, []}},
   {applications,

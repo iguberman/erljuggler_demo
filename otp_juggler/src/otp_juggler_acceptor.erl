@@ -28,7 +28,7 @@
 
 %% TODO define the necessary process state "variables" here, any process lifecycle info goes here
 %% I.e. let's keep track of some basic request processing stats here
--record(state, {num_total_requests = 0, num_failed_requests = 0, num_ok_requests = 0, request_timeout}).
+-record(state, {num_total_requests = 0, num_failed_requests = 0, num_ok_requests = 0, duration = 0}).
 
 %%%===================================================================
 %%% API
@@ -48,7 +48,7 @@ start_link() ->
 
 
 get_stats()->
-  gen_server:call(?SERVER, get_stats, 10000).
+  gen_server:call(?SERVER, get_stats).
 
 
 %%%===================================================================
@@ -69,8 +69,8 @@ get_stats()->
 -spec(init(Args :: term()) ->
   {ok, State :: #state{}} | {ok, State :: #state{}, timeout() | hibernate} |
   {stop, Reason :: term()} | ignore).
-init([RequestTimeout]) ->
-  {ok, #state{request_timeout = RequestTimeout}}.
+init([]) ->
+  {ok, #state{}}.
 
 %%--------------------------------------------------------------------
 %% @private
@@ -89,10 +89,12 @@ init([RequestTimeout]) ->
   {stop, Reason :: term(), NewState :: #state{}}).
 handle_call(get_stats, _From, #state{ num_total_requests = NumRequests,
   num_failed_requests = NumFailedRequests,
-  num_ok_requests = NumOkRequests} = State) ->
+  num_ok_requests = NumOkRequests,
+  duration = TotalDuration} = State) ->
   {reply, #{num_requests => NumRequests,
     num_failed_requests => NumFailedRequests,
-    num_ok_requests => NumOkRequests}, State}.
+    num_ok_requests => NumOkRequests,
+    duration => round(TotalDuration/NumOkRequests)}, State}.
 
 
 %%--------------------------------------------------------------------
@@ -106,25 +108,22 @@ handle_call(get_stats, _From, #state{ num_total_requests = NumRequests,
   {noreply, NewState :: #state{}} |
   {noreply, NewState :: #state{}, timeout() | hibernate} |
   {stop, Reason :: term(), NewState :: #state{}}).
-handle_cast(Request, #state{ num_total_requests = NumRequests,
-  num_failed_requests = NumFailedRequests,
-  num_ok_requests = NumOkRequests,
-  request_timeout = RequestTimeout} = State) ->
-  %%% TODO implement!
-  % 1. spawn otp_juggler_request_handler through the otp_juggler_request_handler_sup(ervisor) and capture its Pid
-  Pid = otp_juggler_request_handler_sup:start_request_handler(NumRequests + 1),
-  Reply =
-    try gen_server:call(Pid, Request, RequestTimeout) catch
-      CrashError:Reason -> {error, {CrashError, Reason}} end,
+handle_cast({new_request, ReqNum} = Request , #state{ num_total_requests = NumRequests} = State) ->
 
-  NewState =
-    case Reply of
-      {error, _Error} ->
-        State#state{num_failed_requests = NumFailedRequests + 1, num_total_requests = NumRequests + 1};
-      _OkReply ->
-        State#state{num_ok_requests = NumOkRequests + 1, num_total_requests = NumRequests + 1}
-    end,
-  {noreply, NewState}.
+  io:format("NEW REQUEST ~p....", [ReqNum]),
+  % 1. spawn otp_juggler_request_controller through the otp_juggler_request_controller_sup(ervisor) and capture its Pid
+  {ok, Pid} = otp_juggler_request_controller_sup:start_request_controller(ReqNum),
+
+  gen_server:cast(Pid, Request),
+
+  {noreply, State#state{num_total_requests = NumRequests + 1}};
+%% Async expect response from controllers
+handle_cast({response, Request, timeout}, #state{num_failed_requests = NumFailedRequests} = State) ->
+  io:format("Request #~p timed out ~n", [Request]),
+  {noreply, State#state{num_failed_requests = NumFailedRequests + 1}};
+handle_cast({response, Request, _OkResp, ReqDuration}, #state{num_ok_requests = NumOkRequests, duration = TotalDuration} = State) ->
+  io:format("Request #~p successful~n", [Request]),
+  {noreply, State#state{num_ok_requests = NumOkRequests + 1, duration = TotalDuration + ReqDuration}}.
 
 
 %%--------------------------------------------------------------------
@@ -157,7 +156,8 @@ handle_info(_Info, State) ->
 %%--------------------------------------------------------------------
 -spec(terminate(Reason :: (normal | shutdown | {shutdown, term()} | term()),
     State :: #state{}) -> term()).
-terminate(_Reason, _State) ->
+terminate(Reason, _State) ->
+  io:format("~p terminated due to ~p~n", [?SERVER, Reason]),
   ok.
 
 %%--------------------------------------------------------------------

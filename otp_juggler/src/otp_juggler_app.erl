@@ -10,6 +10,8 @@
 %% application behaviour callbacks
 -export([start/2, stop/1]).
 
+-export([test_requests/1]).
+
 -export([
     send_request/1,
     get_stats/0]).
@@ -24,7 +26,9 @@ send_request(Request) ->
     gen_server:cast(otp_juggler_acceptor, {new_request, Request}).
 
 get_stats()->
-    io:format("WHEREIS otp_juggler_acceptor: ~p~n", [whereis(otp_juggler_acceptor)]),
     otp_juggler_acceptor:get_stats().
+
+test_requests(NumRequests)->
+    [otp_juggler_app:send_request(X) || X <- lists:seq(1, NumRequests)].
 
 

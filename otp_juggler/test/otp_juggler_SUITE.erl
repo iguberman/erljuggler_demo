@@ -17,9 +17,10 @@
   init_per_suite/1,
   end_per_suite/1,
   test_10000_normal_requests/1,
-  test_infinite_loop_requests/1]).
+  test_infinite_loop_requests/1,
+  test_10000_mixed_requests/1]).
 
-all() -> [test_10000_normal_requests, test_infinite_loop_requests].
+all() -> [test_10000_normal_requests, test_infinite_loop_requests, test_10000_mixed_requests].
 
 init_per_suite(Config)->
   application:ensure_all_started(otp_juggler_app),
@@ -44,7 +45,7 @@ test_infinite_loop_requests(Config) ->
 
 test_10000_mixed_requests(Config) ->
   [otp_juggler_app:send_request({infinite, X}) || X <- lists:seq(1, 1000)],
-  [otp_juggler_app:send_request({infinite, X}) || X <- lists:seq(1, 9000)],
+  [otp_juggler_app:send_request({normal, X}) || X <- lists:seq(1, 9000)],
   timer:sleep(120000),
   #{num_requests := 10000, num_failed_requests := 1000, num_ok_requests := 9000} = otp_juggler_app:get_stats(),
   Config.
